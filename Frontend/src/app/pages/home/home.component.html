@@ -1,0 +1,30 @@
+<app-page-header title="Pengajuan Cuti Saya" />
+<main class="container content">
+  <div class="toolbar">
+    <a class="btn primary" routerLink="/cuti-details">+ Ajukan Cuti</a>
+    @if (!balanceError) {
+      <p class="balance">Sisa saldo cuti <strong>{{ remainingDays === null ? '…' : remainingDays + ' hari' }}</strong></p>
+    }
+  </div>
+  @if (balanceError) {
+    <p class="alert" role="alert">{{ balanceError }}
+      <button class="link-button" (click)="loadBalance()">Coba lagi</button>
+    </p>
+  }
+  @if (actionError) { <p class="alert" role="alert">{{ actionError }}</p> }
+  @if (loading) {
+    <p class="card state" role="status">Memuat pengajuan cuti…</p>
+  } @else if (listError) {
+    <p class="alert" role="alert">{{ listError }}
+      <button class="link-button" (click)="loadList()">Coba lagi</button>
+    </p>
+  } @else {
+    <section class="leave-list" aria-label="Daftar pengajuan saya">
+      @for (leave of leaves; track leave.id) {
+        <app-leave-item [leave]="leave" [disabled]="cancelling" (cancel)="cancel($event)" />
+      } @empty {
+        <p class="card state">Belum ada pengajuan cuti.</p>
+      }
+    </section>
+  }
+</main>

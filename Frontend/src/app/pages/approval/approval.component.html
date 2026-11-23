@@ -1,0 +1,41 @@
+<app-page-header title="Approval Pengajuan Cuti" />
+<main class="container content">
+  @if (actionError) { <p class="alert" role="alert">{{ actionError }}</p> }
+  @if (loading) {
+    <p class="card state" role="status">Memuat pengajuan cuti…</p>
+  } @else if (listError) {
+    <p class="alert" role="alert">{{ listError }}
+      <button class="link-button" (click)="loadList()">Coba lagi</button>
+    </p>
+  } @else if (!leaves.length) {
+    <p class="card state">Belum ada pengajuan cuti dari karyawan.</p>
+  } @else {
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Daftar pengajuan seluruh karyawan">
+      <table aria-label="Pengajuan cuti karyawan">
+        <thead><tr>
+          <th scope="col">Karyawan</th><th scope="col">Tgl Mulai</th><th scope="col">Tgl Selesai</th>
+          <th scope="col">Alasan</th><th scope="col">Status</th><th scope="col">Aksi</th>
+        </tr></thead>
+        <tbody>
+          @for (leave of leaves; track leave.id) {
+            <tr>
+              <td>{{ leave.fullName | titlecase }}</td>
+              <td>{{ leave.startDate | date:'dd MMM yyyy' }}</td>
+              <td>{{ leave.endDate | date:'dd MMM yyyy' }}</td>
+              <td class="reason">{{ leave.reason }}</td>
+              <td><app-status-badge [status]="leave.status" /></td>
+              <td>
+                @if (leave.status === 'Pending') {
+                  <div class="table-actions">
+                    <button class="btn success small" [disabled]="processing" (click)="decide(leave.id, 'approve')">Approve</button>
+                    <button class="btn danger small" [disabled]="processing" (click)="decide(leave.id, 'reject')">Reject</button>
+                  </div>
+                } @else { <span class="muted">—</span> }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</main>

@@ -1,0 +1,27 @@
+<main class="login-page">
+  <section class="card form-card login-card" aria-labelledby="login-title">
+    <h1 id="login-title">CutiApp — Login</h1>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" formControlName="username" autocomplete="username"
+          required aria-describedby="username-error">
+        @if (form.controls.username.touched && form.controls.username.invalid) {
+          <small id="username-error" class="field-error">Username wajib diisi.</small>
+        }
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" formControlName="password" autocomplete="current-password"
+          required aria-describedby="password-error">
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <small id="password-error" class="field-error">Password wajib diisi.</small>
+        }
+      </div>
+      @if (error) { <p role="alert" class="alert">{{ error }}</p> }
+      <button class="btn primary login-button" type="submit" [disabled]="busy">
+        {{ busy ? 'Memproses…' : 'Login' }}
+      </button>
+    </form>
+  </section>
+</main>

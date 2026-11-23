@@ -1,0 +1,40 @@
+<main class="details-page">
+  <section class="card form-card details-card" aria-labelledby="form-title">
+    <h1 id="form-title">Form Pengajuan Cuti</h1>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="start">Tanggal Mulai</label>
+        <input id="start" type="date" formControlName="startDate" required aria-describedby="start-error">
+        @if (fields.startDate.touched && fields.startDate.invalid) {
+          <small class="field-error" id="start-error">Tanggal mulai wajib diisi.</small>
+        }
+      </div>
+      <div class="field">
+        <label for="end">Tanggal Selesai</label>
+        <input id="end" type="date" formControlName="endDate" [min]="fields.startDate.value"
+          required aria-describedby="end-error">
+        @if (fields.endDate.touched && fields.endDate.invalid) {
+          <small class="field-error" id="end-error">Tanggal selesai wajib diisi.</small>
+        } @else if (fields.endDate.touched && form.hasError('dateOrder')) {
+          <small class="field-error" id="end-error">Tanggal selesai tidak boleh sebelum tanggal mulai.</small>
+        }
+      </div>
+      <div class="field">
+        <label for="reason">Alasan Cuti</label>
+        <textarea id="reason" formControlName="reason" rows="4" required aria-describedby="reason-error"
+          placeholder="Contoh: acara keluarga di luar kota selama 3 hari…"></textarea>
+        @if (fields.reason.touched && fields.reason.invalid) {
+          <small class="field-error" id="reason-error">{{ fields.reason.hasError('required')
+            ? 'Alasan cuti wajib diisi.' : 'Alasan cuti harus terdiri dari 10–500 karakter.' }}</small>
+        }
+      </div>
+      @if (error) { <p role="alert" class="alert">{{ error }}</p> }
+      <div class="form-actions">
+        <a routerLink="/home">Kembali</a>
+        <button class="btn primary" type="submit" [disabled]="form.invalid || busy">
+          {{ busy ? 'Mengirim…' : 'Ajukan Cuti' }}
+        </button>
+      </div>
+    </form>
+  </section>
+</main>
