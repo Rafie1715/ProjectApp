@@ -10,6 +10,13 @@ namespace CutiApp.Services;
 
 public class LeaveService : ILeaveService
 {
+    private const string StatusPending = "Pending";
+    private const string StatusApproved = "Approved";
+    private const string StatusRejected = "Rejected";
+    private const string DateFormat = "yyyy-MM-dd";
+    private const int MinReasonLength = 10;
+    private const int MaxReasonLength = 500;
+
     private readonly IRepository<LeaveRequest> _leaveRequestRepo;
     private readonly IRepository<LeaveBalance> _leaveBalanceRepo;
     private readonly IRepository<User> _userRepo;
@@ -69,22 +76,8 @@ public class LeaveService : ILeaveService
             throw new NotFoundException("Data karyawan tidak ditemukan.");
         }
 
-        if (!DateOnly.TryParseExact(request.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly startDate) ||
-            !DateOnly.TryParseExact(request.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly endDate))
-        {
-            throw new BadRequestException("Format tanggal harus yyyy-MM-dd.");
-        }
-
-        if (endDate < startDate)
-        {
-            throw new BadRequestException("Tanggal selesai tidak boleh sebelum tanggal mulai.");
-        }
-
-        string reason = request.Reason.Trim();
-        if (reason.Length < 10 || reason.Length > 500)
-        {
-            throw new BadRequestException("Alasan cuti harus antara 10 sampai 500 karakter.");
-        }
+        (DateOnly startDate, DateOnly endDate) = ParseAndValidateDateRange(request.StartDate, request.EndDate);
+        string reason = ValidateReason(request.Reason);
 
         LeaveRequest leaveRequest = new LeaveRequest
         {
@@ -92,7 +85,7 @@ public class LeaveService : ILeaveService
             StartDate = startDate,
             EndDate = endDate,
             Reason = reason,
-            Status = "Pending",
+            Status = StatusPending,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -110,20 +103,7 @@ public class LeaveService : ILeaveService
 
         try
         {
-            LeaveRequest? leaveRequest = await _leaveRequestRepo.Query()
-                .Include(lr => lr.User)
-                .FirstOrDefaultAsync(lr => lr.Id == id);
-
-            if (leaveRequest == null)
-            {
-                throw new NotFoundException("Pengajuan cuti tidak ditemukan.");
-            }
-
-            if (leaveRequest.Status != "Pending")
-            {
-                throw new InvalidStatusException("Pengajuan cuti sudah diproses sebelumnya.");
-            }
-
+            LeaveRequest leaveRequest = await GetPendingLeaveRequestAsync(id);
             LeaveBalance? balance = await _leaveBalanceRepo.Query()
                 .FirstOrDefaultAsync(lb => lb.UserId == leaveRequest.UserId);
 
@@ -132,16 +112,14 @@ public class LeaveService : ILeaveService
                 throw new NotFoundException("Saldo cuti karyawan tidak ditemukan.");
             }
 
-            // Tanggal mulai dan tanggal selesai ikut dihitung (inklusif)
-            int totalDays = (leaveRequest.EndDate.DayNumber - leaveRequest.StartDate.DayNumber) + 1;
-
+            int totalDays = CalculateLeaveDays(leaveRequest.StartDate, leaveRequest.EndDate);
             if (balance.RemainingDays < totalDays)
             {
                 throw new InsufficientBalanceException(
                     $"Saldo cuti tidak mencukupi. Sisa saldo {balance.RemainingDays} hari, pengajuan membutuhkan {totalDays} hari.");
             }
 
-            leaveRequest.Status = "Approved";
+            leaveRequest.Status = StatusApproved;
             balance.RemainingDays -= totalDays;
 
             _leaveRequestRepo.Update(leaveRequest);
@@ -161,21 +139,9 @@ public class LeaveService : ILeaveService
 
     public async Task<LeaveRequestDto> RejectAsync(int id)
     {
-        LeaveRequest? leaveRequest = await _leaveRequestRepo.Query()
-            .Include(lr => lr.User)
-            .FirstOrDefaultAsync(lr => lr.Id == id);
+        LeaveRequest leaveRequest = await GetPendingLeaveRequestAsync(id);
 
-        if (leaveRequest == null)
-        {
-            throw new NotFoundException("Pengajuan cuti tidak ditemukan.");
-        }
-
-        if (leaveRequest.Status != "Pending")
-        {
-            throw new InvalidStatusException("Pengajuan cuti sudah diproses sebelumnya.");
-        }
-
-        leaveRequest.Status = "Rejected";
+        leaveRequest.Status = StatusRejected;
         _leaveRequestRepo.Update(leaveRequest);
         await _leaveRequestRepo.SaveChangesAsync();
 
@@ -195,13 +161,72 @@ public class LeaveService : ILeaveService
             throw new ForbiddenException("Anda hanya dapat membatalkan pengajuan cuti milik sendiri.");
         }
 
-        if (leaveRequest.Status != "Pending")
+        if (leaveRequest.Status != StatusPending)
         {
             throw new InvalidStatusException("Hanya pengajuan berstatus Pending yang dapat dibatalkan.");
         }
 
         _leaveRequestRepo.Delete(leaveRequest);
         await _leaveRequestRepo.SaveChangesAsync();
+    }
+
+    private async Task<LeaveRequest> GetPendingLeaveRequestAsync(int id)
+    {
+        LeaveRequest? leaveRequest = await _leaveRequestRepo.Query()
+            .Include(lr => lr.User)
+            .FirstOrDefaultAsync(lr => lr.Id == id);
+
+        if (leaveRequest == null)
+        {
+            throw new NotFoundException("Pengajuan cuti tidak ditemukan.");
+        }
+
+        if (leaveRequest.Status != StatusPending)
+        {
+            throw new InvalidStatusException("Pengajuan cuti sudah diproses sebelumnya.");
+        }
+
+        return leaveRequest;
+    }
+
+    private static (DateOnly StartDate, DateOnly EndDate) ParseAndValidateDateRange(
+        string startDateText,
+        string endDateText)
+    {
+        bool isStartValid = DateOnly.TryParseExact(
+            startDateText, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly startDate);
+        bool isEndValid = DateOnly.TryParseExact(
+            endDateText, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly endDate);
+
+        if (!isStartValid || !isEndValid)
+        {
+            throw new BadRequestException($"Format tanggal harus {DateFormat}.");
+        }
+
+        if (endDate < startDate)
+        {
+            throw new BadRequestException("Tanggal selesai tidak boleh sebelum tanggal mulai.");
+        }
+
+        return (startDate, endDate);
+    }
+
+    private static string ValidateReason(string rawReason)
+    {
+        string reason = rawReason.Trim();
+        if (reason.Length < MinReasonLength || reason.Length > MaxReasonLength)
+        {
+            throw new BadRequestException(
+                $"Alasan cuti harus antara {MinReasonLength} sampai {MaxReasonLength} karakter.");
+        }
+
+        return reason;
+    }
+
+    // Tanggal mulai dan tanggal selesai ikut dihitung (inklusif)
+    private static int CalculateLeaveDays(DateOnly startDate, DateOnly endDate)
+    {
+        return (endDate.DayNumber - startDate.DayNumber) + 1;
     }
 
     private static LeaveRequestDto MapToDto(LeaveRequest lr)

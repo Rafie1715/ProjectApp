@@ -12,6 +12,8 @@ namespace CutiApp.Services;
 
 public class AuthService : IAuthService
 {
+    private const int DefaultTokenExpireHours = 8;
+
     private readonly IRepository<User> _userRepo;
     private readonly IConfiguration _config;
 
@@ -47,7 +49,9 @@ public class AuthService : IAuthService
         string jwtKey = _config["Jwt:Key"]!;
         string? issuer = _config["Jwt:Issuer"];
         string? audience = _config["Jwt:Audience"];
-        int expireHours = int.TryParse(_config["Jwt:ExpireHours"], out int hours) ? hours : 8;
+        int expireHours = int.TryParse(_config["Jwt:ExpireHours"], out int hours)
+            ? hours
+            : DefaultTokenExpireHours;
 
         SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         SigningCredentials credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
