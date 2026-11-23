@@ -23,8 +23,8 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request)
     {
-        var username = request.Username.Trim();
-        var user = await _userRepo.Query()
+        string username = request.Username.Trim();
+        User? user = await _userRepo.Query()
             .FirstOrDefaultAsync(u => u.Username == username);
 
         if (user == null || user.Password != request.Password)
@@ -32,7 +32,7 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Username atau password salah.");
         }
 
-        var token = GenerateJwtToken(user);
+        string token = GenerateJwtToken(user);
 
         return new LoginResponseDto
         {
@@ -44,15 +44,15 @@ public class AuthService : IAuthService
 
     private string GenerateJwtToken(User user)
     {
-        var jwtKey = _config["Jwt:Key"]!;
-        var issuer = _config["Jwt:Issuer"];
-        var audience = _config["Jwt:Audience"];
-        var expireHours = int.TryParse(_config["Jwt:ExpireHours"], out var hours) ? hours : 8;
+        string jwtKey = _config["Jwt:Key"]!;
+        string? issuer = _config["Jwt:Issuer"];
+        string? audience = _config["Jwt:Audience"];
+        int expireHours = int.TryParse(_config["Jwt:ExpireHours"], out int hours) ? hours : 8;
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+        SigningCredentials credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        Claim[] claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
@@ -60,7 +60,7 @@ public class AuthService : IAuthService
             new Claim("fullName", user.FullName)
         };
 
-        var token = new JwtSecurityToken(
+        JwtSecurityToken token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
@@ -71,4 +71,3 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
-

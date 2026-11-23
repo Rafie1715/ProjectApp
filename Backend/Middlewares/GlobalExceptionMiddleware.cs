@@ -33,7 +33,7 @@ public class GlobalExceptionMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
-        var (statusCode, message) = ex switch
+        (int statusCode, string message) = ex switch
         {
             UnauthorizedException => (StatusCodes.Status401Unauthorized, ex.Message),
             ForbiddenException => (StatusCodes.Status403Forbidden, ex.Message),
@@ -52,8 +52,7 @@ public class GlobalExceptionMiddleware
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
 
-        var payload = JsonSerializer.Serialize(new { message }, JsonOptions);
+        string payload = JsonSerializer.Serialize(new { message }, JsonOptions);
         await context.Response.WriteAsync(payload);
     }
 }
-

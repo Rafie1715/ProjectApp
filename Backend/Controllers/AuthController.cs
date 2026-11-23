@@ -23,7 +23,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _authService.LoginAsync(request);
+            LoginResponseDto result = await _authService.LoginAsync(request);
             return Ok(result);
         }
         catch (UnauthorizedException ex)
@@ -32,4 +32,3 @@ public class AuthController : ControllerBase
         }
     }
 }
-

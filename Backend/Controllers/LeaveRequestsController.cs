@@ -22,15 +22,15 @@ public class LeaveRequestsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<LeaveRequestDto>>> GetAll()
     {
-        var result = await _leaveService.GetAllAsync();
+        List<LeaveRequestDto> result = await _leaveService.GetAllAsync();
         return Ok(result);
     }
 
     [HttpGet("mine")]
     public async Task<ActionResult<List<LeaveRequestDto>>> GetMine()
     {
-        var userId = GetCurrentUserId();
-        var result = await _leaveService.GetMineAsync(userId);
+        int userId = GetCurrentUserId();
+        List<LeaveRequestDto> result = await _leaveService.GetMineAsync(userId);
         return Ok(result);
     }
 
@@ -39,8 +39,8 @@ public class LeaveRequestsController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
-            var result = await _leaveService.GetBalanceAsync(userId);
+            int userId = GetCurrentUserId();
+            LeaveBalanceDto result = await _leaveService.GetBalanceAsync(userId);
             return Ok(result);
         }
         catch (NotFoundException ex)
@@ -54,8 +54,8 @@ public class LeaveRequestsController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
-            var result = await _leaveService.CreateAsync(userId, request);
+            int userId = GetCurrentUserId();
+            LeaveRequestDto result = await _leaveService.CreateAsync(userId, request);
             return StatusCode(StatusCodes.Status201Created, result);
         }
         catch (BadRequestException ex)
@@ -73,7 +73,7 @@ public class LeaveRequestsController : ControllerBase
     {
         try
         {
-            var result = await _leaveService.ApproveAsync(id);
+            LeaveRequestDto result = await _leaveService.ApproveAsync(id);
             return Ok(result);
         }
         catch (NotFoundException ex)
@@ -99,7 +99,7 @@ public class LeaveRequestsController : ControllerBase
     {
         try
         {
-            var result = await _leaveService.RejectAsync(id);
+            LeaveRequestDto result = await _leaveService.RejectAsync(id);
             return Ok(result);
         }
         catch (NotFoundException ex)
@@ -117,7 +117,7 @@ public class LeaveRequestsController : ControllerBase
     {
         try
         {
-            var userId = GetCurrentUserId();
+            int userId = GetCurrentUserId();
             await _leaveService.CancelAsync(id, userId);
             return Ok(new { message = "Pengajuan cuti berhasil dibatalkan." });
         }
@@ -137,8 +137,8 @@ public class LeaveRequestsController : ControllerBase
 
     private int GetCurrentUserId()
     {
-        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(claim, out var userId))
+        string? claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(claim, out int userId))
         {
             throw new UnauthorizedException("Token autentikasi tidak valid.");
         }
@@ -146,4 +146,3 @@ public class LeaveRequestsController : ControllerBase
         return userId;
     }
 }
-

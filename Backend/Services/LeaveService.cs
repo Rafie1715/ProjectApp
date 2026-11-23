@@ -4,6 +4,7 @@ using CutiApp.Exceptions;
 using CutiApp.Models;
 using CutiApp.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace CutiApp.Services;
 
@@ -25,7 +26,7 @@ public class LeaveService : ILeaveService
 
     public async Task<List<LeaveRequestDto>> GetAllAsync()
     {
-        var items = await _leaveRequestRepo.Query()
+        List<LeaveRequest> items = await _leaveRequestRepo.Query()
             .Include(lr => lr.User)
             .OrderByDescending(lr => lr.CreatedAt)
             .ToListAsync();
@@ -35,7 +36,7 @@ public class LeaveService : ILeaveService
 
     public async Task<List<LeaveRequestDto>> GetMineAsync(int userId)
     {
-        var items = await _leaveRequestRepo.Query()
+        List<LeaveRequest> items = await _leaveRequestRepo.Query()
             .Include(lr => lr.User)
             .Where(lr => lr.UserId == userId)
             .OrderByDescending(lr => lr.CreatedAt)
@@ -46,7 +47,7 @@ public class LeaveService : ILeaveService
 
     public async Task<LeaveBalanceDto> GetBalanceAsync(int userId)
     {
-        var balance = await _leaveBalanceRepo.Query()
+        LeaveBalance? balance = await _leaveBalanceRepo.Query()
             .FirstOrDefaultAsync(lb => lb.UserId == userId);
 
         if (balance == null)
@@ -62,14 +63,14 @@ public class LeaveService : ILeaveService
 
     public async Task<LeaveRequestDto> CreateAsync(int userId, CreateLeaveRequestDto request)
     {
-        var user = await _userRepo.GetByIdAsync(userId);
+        User? user = await _userRepo.GetByIdAsync(userId);
         if (user == null)
         {
             throw new NotFoundException("Data karyawan tidak ditemukan.");
         }
 
-        if (!DateOnly.TryParseExact(request.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startDate) ||
-            !DateOnly.TryParseExact(request.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var endDate))
+        if (!DateOnly.TryParseExact(request.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly startDate) ||
+            !DateOnly.TryParseExact(request.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly endDate))
         {
             throw new BadRequestException("Format tanggal harus yyyy-MM-dd.");
         }
@@ -79,13 +80,13 @@ public class LeaveService : ILeaveService
             throw new BadRequestException("Tanggal selesai tidak boleh sebelum tanggal mulai.");
         }
 
-        var reason = request.Reason.Trim();
+        string reason = request.Reason.Trim();
         if (reason.Length < 10 || reason.Length > 500)
         {
             throw new BadRequestException("Alasan cuti harus antara 10 sampai 500 karakter.");
         }
 
-        var leaveRequest = new LeaveRequest
+        LeaveRequest leaveRequest = new LeaveRequest
         {
             UserId = userId,
             StartDate = startDate,
@@ -105,11 +106,11 @@ public class LeaveService : ILeaveService
     public async Task<LeaveRequestDto> ApproveAsync(int id)
     {
         // Ubah status dan kurangi saldo dalam satu transaksi agar selalu konsisten
-        await using var transaction = await _leaveRequestRepo.BeginTransactionAsync();
+        await using IDbContextTransaction transaction = await _leaveRequestRepo.BeginTransactionAsync();
 
         try
         {
-            var leaveRequest = await _leaveRequestRepo.Query()
+            LeaveRequest? leaveRequest = await _leaveRequestRepo.Query()
                 .Include(lr => lr.User)
                 .FirstOrDefaultAsync(lr => lr.Id == id);
 
@@ -123,7 +124,7 @@ public class LeaveService : ILeaveService
                 throw new InvalidStatusException("Pengajuan cuti sudah diproses sebelumnya.");
             }
 
-            var balance = await _leaveBalanceRepo.Query()
+            LeaveBalance? balance = await _leaveBalanceRepo.Query()
                 .FirstOrDefaultAsync(lb => lb.UserId == leaveRequest.UserId);
 
             if (balance == null)
@@ -132,7 +133,7 @@ public class LeaveService : ILeaveService
             }
 
             // Tanggal mulai dan tanggal selesai ikut dihitung (inklusif)
-            var totalDays = (leaveRequest.EndDate.DayNumber - leaveRequest.StartDate.DayNumber) + 1;
+            int totalDays = (leaveRequest.EndDate.DayNumber - leaveRequest.StartDate.DayNumber) + 1;
 
             if (balance.RemainingDays < totalDays)
             {
@@ -160,7 +161,7 @@ public class LeaveService : ILeaveService
 
     public async Task<LeaveRequestDto> RejectAsync(int id)
     {
-        var leaveRequest = await _leaveRequestRepo.Query()
+        LeaveRequest? leaveRequest = await _leaveRequestRepo.Query()
             .Include(lr => lr.User)
             .FirstOrDefaultAsync(lr => lr.Id == id);
 
@@ -183,7 +184,7 @@ public class LeaveService : ILeaveService
 
     public async Task CancelAsync(int id, int userId)
     {
-        var leaveRequest = await _leaveRequestRepo.GetByIdAsync(id);
+        LeaveRequest? leaveRequest = await _leaveRequestRepo.GetByIdAsync(id);
         if (leaveRequest == null)
         {
             throw new NotFoundException("Pengajuan cuti tidak ditemukan.");
@@ -218,4 +219,3 @@ public class LeaveService : ILeaveService
         };
     }
 }
-
